@@ -1,166 +1,88 @@
-import numpy as np
-import pandas as pd
-import networkx as nx
 from matplotlib import pyplot as plt
-from numpy import linalg as LA
-from scipy.linalg import solve
-import random
+import numpy as np
+import math
+n=63
+N=1
 
 
-#чтение таблицы в массив
-m=4
-k=20
-N=150
-top_players = pd.read_excel('./table2.xlsx')
-top_players.head()
-n=top_players.to_numpy()
-a=np.array(np.delete(n, 0, 1),float)
-print("матрица переходных вероятностей:")
-print('\n'.join('\t'.join(map(str, row)) for row in a))
+aa=n-64
+bb=N/4
+k=40
+phi_begin=aa
+phi_end=3*aa+bb*2
+A=[]
 
-#печать графа
+h=(1+1)/(k)
+for i in range(k+1):
+    A.append(-1+i*h)
 
-G1 = nx.MultiDiGraph()
-G = nx.Graph()
-for i in range(len(a)):
-    for j in range(len(a)):
-        if (a[i][j]!=0 and a[i][j]!=None):
-            G.add_edge(i+1, j+1, weight=a[i][j])
-            G1.add_edge(i + 1, j + 1, weight=a[i][j])
+F=[]
+F.append([0] * k)
+print(A)
+def q(x):
+    return -4
+def p(x):
+    return x
+def v(x):
+    return (-x**3+12*x**2+6*x-4)*aa+(-2*x**2-3*x+2)*bb
 
-pos = nx.circular_layout(G1)
-nx.draw_networkx_nodes(G, pos)
-pos1={}
-j=(0,0,{"":0})
-pos1 = {}
-pos2 = {}
-for i in G.edges(None, True):
-    if (i[0] == j[1] and j[0] == i[1]):
-        pos1[i[0]] = pos[i[0]].copy()
-        pos1[i[0]][0] += 0.255
-        pos1[j[0]][0] -= 0.255
-        pos2[i[0]] = (i[2]['weight'])
-    if (i[0] == i[1]):
-        pos1[i[0]] = pos[i[0]].copy()
-        pos1[i[0]][1] += 0.255
-        pos2[i[0]] = (i[2]['weight'])
-    j=i
+for i in range(1,k-1):
+    F.append([0] * k)
+    F[i][i - 1] = 1 / h ** 2 - p(A[i]) / (2 * h)
+    F[i][i] = -2 / h ** 2 + q(A[i])
+    F[i][i + 1] = 1 / h ** 2 + p(A[i]) / 2 / h
 
+F[0][0]=1
+F.append([0] * k)
+F[k-1][k-1]=1
+print('\n'.join([''.join(['{:8}'.format(round(item,2)) for item in row]) for row in F]))
 
-nx.draw_networkx_edges(G1, pos, edgelist=None, width=1,connectionstyle='arc3,rad=0.2')
-edge_labels = nx.get_edge_attributes(G, "weight")
-nx.draw_networkx_edge_labels(G, pos, edge_labels,font_size=8)
-
-nx.draw_networkx_labels(G1, pos,font_size=10)
-nx.draw_networkx_labels(G, pos1, {n:lab for n,lab in pos2.items() if n in pos1},font_size=8, font_color='k', font_family='sans-serif', font_weight='normal', alpha=None,  horizontalalignment='center', verticalalignment='bottom', ax=None, clip_on=False)
-ax = plt.gca()
-ax.margins(0.08)
-plt.axis("off")
-plt.tight_layout()
-
-#эргодичность
-
-P_2 = np.linalg.matrix_power(a, 2)
-print("n = 2:\n", P_2)
-P_3 = np.linalg.matrix_power(a, 3)
-print("\nn = 3:\n", P_3)
-P_500 = np.linalg.matrix_power(a, 20)
-print("\nn = 20:\n", P_500)
-P_1000 = np.linalg.matrix_power(a, 500)
-print("\nn = 500:\n", P_1000)
-P_1000 = np.linalg.matrix_power(a, 1000)
-print("\nn = 1000:\n", P_1000)
-
-
-# поиск предельных вероятностей
-
+L=[]
 M=[]
-for i in range(m):
-    M.append([0]*(m))
-    for j in range(m):
-        if(i==j):
-            M[i][j]=-1+a[j][i]
-        else:
-            M[i][j] = a[j][i]
-M.append([1]*(m))
-del M[m-1]
-print("матрица для СЛАУ:")
-print(np.matrix(M))
-pi=solve(M, [0]*(m-1)+[1])
-print("\nвектор предельных вероятностей:")
-print('pi_j=',pi)
+L.append(-F[0][1]/F[0][0])
+M.append(phi_begin/F[0][0])
+for i in range(1,k):
 
-#моделирование начального вектора вероятностей состояний
+    if (i != k - 1):
+        a = F[i][i - 1]
+        b = F[i][i]
+        c = F[i][i + 1]
+        L.append(-c / (L[i-1]*a+b))
+        M.append((v(A[i])-M[i-1]*a)/(L[i-1]*a+b))
+    else:
+        L.append(-c / (L[i - 1] * a + b))
+        M.append((v(A[i]) - M[i - 1] * a) / (L[i - 1] * a + b))
+        a = F[i][i - 1]
+        b = F[i][i]
+        M.append((phi_end - M[i - 1] * a) / (L[i - 1] * a + b))
 
-r=sorted(np.random.uniform(low = 0.0, high = 1.0, size = m))
-print('r=',r)
-p0=[r[0]]
-for i in range(1,m-1):
-    p0.append(r[i]-r[i-1])
-p0.append(1-r[m-2])
-print("\nначальный вектор вероятностей:")
-print('p_0=',p0)
 
-#безусловные вероятности состояний смоделированной цепи на k шаге
-Pk=LA.matrix_power (a.transpose(), k)
-pk=np.matmul(Pk, p0)
-print("\nбезусловные вероятности состояний смоделированной цепи на k шаге:")
-print('p(',k,')=',pk)
+#M.append((phi_end-M[k-1]*F[k-2][k-1])/(L[k-1]*F[k-2][k-1]+F[k-1][k-1]))
+x=[0]*k
+x[k-1]=M[k]
+for i in range(k-2,-1,-1):
+    x[i]=L[i+1]*x[i+1]+M[i+1]
 
-#моделированиe траекторий
-ss=[]
-for i in range(N):
-    s=[0]*k
-    otr=np.cumsum(p0.copy())
-    otr1=p0.copy()
-    for j in range(k):
-        r0 = random.uniform(0, otr[m-1])
-        num=0
-        if (r0 < otr[0]):
-            num=0
-        else:
-            for i in range(1,m):
-                if (otr[i-1]<r0<otr[i]):
-                    num=i
-        if(len(np.where(otr1==0.5)[0])==2):
-            s[j]=1+random.choice(np.where(otr1==0.5)[0])
-        else:
-            s[j]=1+num
-        otr = np.cumsum(a[s[j]-1])
-        otr1=a[s[j]-1]
-
-    print("S=",s)
-    ss.append(s)
-emp=[]
-for i in range(k):
-    emp.append([0]*m)
-    for j in range(m):
-        for l in range(N):
-            if(ss[l][i]==j+1):
-                emp[i][j]+=1/N
-
-print('\n\n')
-print('Эмперические вероятности')
-print(np.matrix(emp))
+print(' '.join(['{:8}'.format(round(item,2)) for item in M]))
+print(' '.join(['{:8}'.format(round(item,2)) for item in L]))
+print(' '.join(['{:8}'.format(round(item,2)) for item in x]))
 
 fig = plt.figure(figsize=(6, 4))
 ax = fig.add_subplot()
-x = np.arange(m)
-y3 = pi
-y2 = emp[k-1]
-y1 = pk
-w = 0.3
 
-fig.set_facecolor('floralwhite')
-ax.bar(x +w, y1, width=w, label = "Теоретические вероятности")
-ax.bar(x , y2, width=w, label = "Эмпирические вероятности")
-ax.bar(x - w, y3, width=w, label = "Предельные вероятности")
+t = np.arange(-1,1,h)
+y1 = x
+y2= [-i**4-i**3+1/4*i**2+1/4*i-1 for i in t]
+pog=[math.sqrt((y1[i]-y2[i+1])**2) for i in range(k-1)]
+print(max(pog))
+x2=[-0.9829426793082596, -0.9690457237448047, -0.9580420152297798, -0.9496738087513427, -0.9436927323625273, -0.9398597871780351, -0.9379453473709525, -0.9377291601693956, -0.9390003458530836, -0.9415573977498399, -0.9452081822320235, -0.9497699387128897, -0.9550692796428831, -0.9609421905058619, -0.967234029815256, -0.9737995291101591, -0.9805027929513586, -0.9872172989173001, -0.9938258975999943, -1.0002208126008618, -1.0063036405265224, -1.0119853509845274, -1.0171862865790389, -1.0218361629064583, -1.0258740685510035, -1.0292484650802407, -1.0319171870405703, -1.0338474419526709, -1.0350158103069018, -1.0354082455586704, -1.0350200741237634, -1.0338559953736453, -1.0319300816307286, -1.029265778163617, -1.0258959031823234, -1.0218626478334698, -1.0172175761954663, -1.0120216252736767, -1.0063451049955712, -1.000267698205871, -0.9938784606616852, -0.987275821027647, -0.980567580871047, -0.9738709146569722, -0.9673123697434491, -0.9610278663765978, -0.9551626976857961, -0.9498715296788603, -0.9453184012372431, -0.9416767241112529, -0.939129282915297, -0.9378682351231509, -0.9380951110632577, -0.9400208139140596, -0.9438656196993637, -0.9498591772837458, -0.9582405083679941, -0.9692580074845955, -0.9831694419932662, -1.0002419520765304, -1.020752050735348, -1.0449856237847934, -1.0732379298497892, -1.1058136003608936, -1.1430266395501476, -1.1852004244469794, -1.232667704874171, -1.2857706034438865, -1.3448606155537652, -1.4102986093830796, -1.4824548258889592, -1.5617088788026838, -1.6484497546260444, -1.7430758126277741, -1.8459947848400493, -1.9576237760550637, -2.0783892638216726, -2.2087270984421106, -2.349082502968782, -2.5]
+x22=[x2[i] for i in range(0,2*k,2)]
+print(' '.join(['{:8}'.format(round(item,2)) for item in x]))
+print(' '.join(['{:8}'.format(round(item,2)) for item in x22]))
+pog2=[math.sqrt((x22[i]-x[i])**2) for i in range(k)]
+print(max(pog)/3)
+
+plt.plot(t,y1,"r",label = "численное решение")
+plt.plot(t,y2, "*b",label = "аналитическое решение")
 ax.legend()
 plt.show()
-
-plt.show()
-
-
-
-
-
